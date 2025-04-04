@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🌡️ Smart Thermostat Controller</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #6dd5fa, #ffffff);
+      margin: 0;
+      padding: 0;
+    }
+
+    h1 {
+      text-align: center;
+      padding: 20px;
+      color: #1c1c1c;
+      background-color: #d2f3ff;
+      margin: 0;
+    }
+
+    .chat-container {
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+
+    .messages {
+      max-height: 400px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+
+    .message {
+      padding: 10px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+
+    .user {
+      background: #d4f1f9;
+      text-align: right;
+    }
+
+    .bot {
+      background: #f5f5f5;
+      text-align: left;
+    }
+
+    input[type="text"] {
+      width: 75%;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      margin-right: 10px;
+    }
+
+    button {
+      padding: 12px 20px;
+      background-color: #0077cc;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #005fa3;
+    }
+
+    .suggestions {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #555;
+    }
+
+    .suggestions span {
+      background-color: #eef;
+      padding: 4px 8px;
+      margin: 2px;
+      border-radius: 8px;
+      display: inline-block;
+      cursor: pointer;
+    }
+
+    .suggestions span:hover {
+      background-color: #dceeff;
+    }
+
+    footer {
+      text-align: center;
+      padding: 10px;
+      font-size: 13px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <h1>🌡️ Smart Thermostat Controller</h1>
+  <div class="chat-container">
+    <div class="messages" id="chat"></div>
+    <input type="text" id="userInput" placeholder="Ask about the temperature or weather...">
+    <button onclick="handleSend()">Send</button>
+    <div class="suggestions">
+      💬 Try:
+      <span onclick="suggest('Whats the temperature in Delhi')">Whats the temperature in Delhi</span>
+      <span onclick="suggest('Get me the temperature in Punjab')">Get me the temperature in Punjab</span>
+      <span onclick="suggest('here')">here</span>
+    </div>
+  </div>
+  <footer>API by OpenWeatherMap • Heating & Cooling Suggestions Included</footer>
+
+  <script>
+    const API_KEY = "a61b6d104b66879534a428358790db88";
+    const chat = document.getElementById("chat");
+
+    function appendMessage(sender, text) {
+      const msg = document.createElement("div");
+      msg.className = `message ${sender}`;
+      msg.innerHTML = text;
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function handleSend() {
+      const input = document.getElementById("userInput");
+      const text = input.value.trim();
+      if (!text) return;
+      appendMessage("user", text);
+      input.value = "";
+
+      if (text.toLowerCase().includes("here")) {
+        getWeatherByGeolocation();
+      } else {
+        const cityMatch = text.match(/in (.+)$/i);
+        const city = cityMatch ? cityMatch[1] : text;
+        getWeatherByCity(city);
+      }
+    }
+
+    function suggest(text) {
+      document.getElementById("userInput").value = text;
+      handleSend();
+    }
+
+    function getWeatherByCity(city) {
+      fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}&units=metric`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.cod !== 200) {
+            appendMessage("bot", `⚠️ Couldn't get weather data. Please check the city name.`);
+            return;
+          }
+          displayWeather(data);
+        })
+        .catch(() => {
+          appendMessage("bot", `⚠️ Network error. Please try again later.`);
+        });
+    }
+
+    function getWeatherByGeolocation() {
+      if (!navigator.geolocation) {
+        appendMessage("bot", "🌐 Geolocation not supported by your browser.");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          const { latitude, longitude } = position.coords;
+          fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${API_KEY}&units=metric`)
+            .then(res => res.json())
+            .then(data => displayWeather(data))
+            .catch(() => appendMessage("bot", "⚠️ Failed to fetch geolocation weather data."));
+        },
+        () => {
+          appendMessage("bot", "⚠️ Geolocation denied. Please enter your city manually.");
+        }
+      );
+    }
+
+    function displayWeather(data) {
+      const temp = data.main.temp;
+      const humidity = data.main.humidity;
+      const desc = data.weather[0].description;
+      const city = data.name;
+      const country = data.sys.country;
+
+      let advice = "";
+      if (temp <= 15) {
+        advice += "🥶 It's cold. Turning on the <b>heater</b> is recommended.<br>";
+      } else if (temp >= 30) {
+        advice += "🥵 It's hot. Turning on the <b>air conditioner</b> might help.<br>";
+      } else {
+        advice += "😊 The temperature is comfortable.<br>";
+      }
+
+      if (humidity > 80) {
+        advice += "💧 It's very humid. A <b>dehumidifier</b> may help.";
+      } else if (humidity < 30) {
+        advice += "💨 Air is dry. Consider using a <b>humidifier</b>.";
+      } else {
+        advice += "🌿 Humidity levels are normal.";
+      }
+
+      appendMessage("bot", `
+        🌡️ The current temperature in <b>${city}, ${country}</b> is <b>${temp}°C</b> with ${desc}.<br>
+        ${advice}
+      `);
+    }
+  </script>
+</body>
+</html>
